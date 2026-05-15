@@ -91,9 +91,30 @@
         bgMusic.loop = true; bgMusic.volume = 1.0;
 
         const loader = new THREE.TextureLoader();
-        const photoFiles = ['./p1.JPG', './p2.jpg', './p3.jpeg', './p4.jpeg', './p5.jpg'];
+        const photoFiles = [];
         const photoTextures = [];
-        photoFiles.forEach((f, i) => photoTextures[i] = loader.load(f));
+
+        async function loadPhotoFiles() {
+            const defaultFiles = ['./p1.JPG', './p2.jpg', './p3.jpeg', './p4.jpeg', './p5.jpg'];
+            try {
+                const response = await fetch('./imgs/');
+                if (!response.ok) throw new Error('Directory fetch failed');
+                const html = await response.text();
+                const thumbRegex = /href="([^"]+\.(?:jpe?g|png|gif|webp|bmp))"/gi;
+                let match;
+                while ((match = thumbRegex.exec(html)) !== null) {
+                    const candidate = match[1].trim();
+                    if (candidate && !candidate.startsWith('#') && !candidate.startsWith('http')) {
+                        const path = candidate.startsWith('./') ? candidate : `./imgs/${candidate}`;
+                        if (!photoFiles.includes(path)) photoFiles.push(path);
+                    }
+                }
+            } catch (err) {
+                console.warn('Could not enumerate imgs folder, using fallback list', err);
+            }
+            if (photoFiles.length === 0) photoFiles.push(...defaultFiles);
+            photoFiles.forEach((f, i) => photoTextures[i] = loader.load(f));
+        }
 
         function createCustomTexture(type) {
             const canvas = document.createElement('canvas');
@@ -274,7 +295,7 @@
             const borderGeo = new THREE.PlaneGeometry(9, 9); 
             const borderMat = new THREE.MeshBasicMaterial({ color: 0xFFD700 }); 
 
-            for(let i=0; i<5; i++) {
+            for(let i=0; i<photoFiles.length; i++) {
                 const mat = new THREE.MeshBasicMaterial({ map: photoTextures[i], side: THREE.DoubleSide });
                 const mesh = new THREE.Mesh(geo, mat);
                 const border = new THREE.Mesh(borderGeo, borderMat);
@@ -481,9 +502,10 @@
             renderer.render(scene, camera);
         }
 
-        function startSystem() {
+        async function startSystem() {
             document.getElementById('btnStart').style.display = 'none';
             bgMusic.play().catch(e => console.log(e));
+            await loadPhotoFiles();
             init3D();
 
             const video = document.getElementsByClassName('input_video')[0];
